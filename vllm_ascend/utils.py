@@ -281,7 +281,8 @@ def npu_wait_tensor(self: torch.Tensor,
 class FusedMoEState(Enum):
     AllGather = 0
     All2All = 1
-    MC2 = 2
+    MC2_DECODE = 2
+    MC2_PREFILL = 3
 
 
 # TODO(zzzzwwjj): add soc_version to choose branch
@@ -289,7 +290,9 @@ def get_fused_moe_state(ep_size: int, with_prefill: bool):
     if ep_size == 1:
         return FusedMoEState.AllGather
     # NOTE: mc2 need ep_size >= 16 & all2all can't use in torchair graph.
-    elif ep_size < 16 or with_prefill:
+    elif ep_size < 16 and  with_prefill:
         return FusedMoEState.All2All
+    elif ep_size >=16 and with_prefill:
+        return FusedMoEState.MC2_PREFILL
     else:
-        return FusedMoEState.MC2
+        return FusedMoEState.MC2_DECODE

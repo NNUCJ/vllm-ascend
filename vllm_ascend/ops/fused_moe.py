@@ -1151,6 +1151,11 @@ class AscendFusedMoE(FusedMoE):
             tp_rank = get_tensor_model_parallel_rank()
             hidden_states = chunk_hidden_states[tp_rank]
             router_logits = chunk_router_logits[tp_rank]
+        max_num_tokens_across_dp = 0
+        if is_prefill:
+            attn_metadata = get_forward_context().attn_metadata
+            if attn_metadata is not None:
+                max_num_tokens_across_dp = attn_metadata.max_num_tokens_across_dp
         if self.dp_size > 1 and fused_moe_state == FusedMoEState.AllGather:
             # NOTE: When in torchair graph, it has been padded in model_runner_v1
             if not self.torchair_graph_enabled or is_prefill:
@@ -1188,6 +1193,7 @@ class AscendFusedMoE(FusedMoE):
             global_redundant_expert_num=self.global_redundant_expert_num,
             shared_experts=shared_experts if self.torchair_graph_enabled
             and self.enable_multistream_moe and not is_prefill else None,
+            max_num_tokens_across_dp=max_num_tokens_across_dp,
         )
 
         if shared_experts:
