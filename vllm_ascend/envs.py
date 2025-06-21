@@ -132,7 +132,10 @@ env_variables: Dict[str, Callable[[], Any]] = {
     # rpc communication listening port, which will be used to receive the agent metadata from the
     # remote worker.
     "VLLM_LLMDD_RPC_PORT":
-    lambda: int(os.getenv("VLLM_LLMDD_RPC_PORT", 5557))
+    lambda: int(os.getenv("VLLM_LLMDD_RPC_PORT", 5557)),
+
+    "VLLM_ASCEND_FUSED_MOE_MC2_CHUNK_SIZE":
+    lambda: int(os.getenv("VLLM_ASCEND_FUSED_MOE_MC2_CHUNK_SIZE", "512"))
 }
 
 # end-env-vars-definition
