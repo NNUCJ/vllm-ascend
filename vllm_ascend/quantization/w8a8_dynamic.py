@@ -258,7 +258,7 @@ def fused_prefill_experts_with_mc2(
         hidden_states_chunk = hidden_states_chunks[i]
         topk_weights_chunk = topk_weights_chunks[i]
         topk_ids_chunk = topk_ids_chunks[i]
-        prefill_expert_outputs = used_experts_with_mc2(
+        prefill_expert_outputs = fused_experts_with_mc2(
             hidden_states=hidden_states_chunk ,
             w1=w1,
             w2=w2,
