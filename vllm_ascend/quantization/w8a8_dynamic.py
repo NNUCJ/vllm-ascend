@@ -18,6 +18,7 @@
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import torch
+from torch import nn
 import torch.distributed as dist
 import torch_npu
 from vllm.distributed import GroupCoordinator

@@ -1193,6 +1193,7 @@ class AscendFusedMoE(FusedMoE):
             global_redundant_expert_num=self.global_redundant_expert_num,
             shared_experts=shared_experts if self.torchair_graph_enabled
             and self.enable_multistream_moe and not is_prefill else None,
+            max_num_tokens_across_dp=max_num_tokens_across_dp,
         )
 
         if shared_experts:
