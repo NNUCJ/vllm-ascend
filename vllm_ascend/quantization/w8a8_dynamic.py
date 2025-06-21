@@ -254,7 +254,7 @@ def fused_prefill_experts_with_mc2(
     topk_weights_chunks = torch.tensor_split(topk_weights, max_num_chunks, dim=0)
     topk_ids_chunks = torch.tensor_split(topk_ids, max_num_chunks, dim=0)
 
-    for i in range(len(hidden_states_chunk)):
+    for i in range(len(hidden_states_chunks)):
         hidden_states_chunk = hidden_states_chunks[i]
         topk_weights_chunk = topk_weights_chunks[i]
         topk_ids_chunk = topk_ids_chunks[i]
