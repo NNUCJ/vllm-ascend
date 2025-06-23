@@ -475,8 +475,10 @@ class CustomDeepseekV2MLAAttention(DeepseekV2MLAAttention):
             hidden_states: torch.Tensor,
             kv_cache: Optional[torch.Tensor] = None,
             attn_metadata: Optional[AttentionMetadata] = None) -> torch.Tensor:
+        # hidden_states shape [119, 7168]
         if self.q_lora_rank is not None:
-            ckq = self.q_a_proj(hidden_states)[0]
+            # 对qj矩阵进行降维, q 低秩维度1536
+            ckq = self.q_a_proj(hidden_states)[0]   # ckq ---> shape [119, 1536]
             use_multistream_mla = (self.enable_multistream_mla
                                    and attn_metadata is not None
                                    and attn_metadata.num_decodes > 0)
@@ -486,7 +488,7 @@ class CustomDeepseekV2MLAAttention(DeepseekV2MLAAttention):
                                    enabled=use_multistream_mla):
                 hidden_states_or_q_c = self.q_a_layernorm(ckq)
         else:
-            hidden_states_or_q_c = hidden_states
+            hidden_states_or_q_c = hidden_states  # hidden_states_or_q_c --> shape [119, 1536]
         if self.torchair_graph_enabled:
             forward_kwargs = {}
             if envs.VLLM_USE_V1:
@@ -506,8 +508,8 @@ class CustomDeepseekV2MLAAttention(DeepseekV2MLAAttention):
             return output
         else:
             kv_c, k_pe = self.kv_a_proj_with_mqa(hidden_states)[0].split(
-                [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
-            kv_c_normed = self.kv_a_layernorm(kv_c.contiguous())
+                [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)  # kv_c --> shape [119, 512], k_pe ---> shape [119, 64]
+            kv_c_normed = self.kv_a_layernorm(kv_c.contiguous()) # kv_c_normed  ---> shape [119, 512]
             return self.mla_attn(hidden_states_or_q_c,
                                  kv_c_normed,
                                  k_pe,

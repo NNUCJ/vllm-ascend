@@ -1061,7 +1061,7 @@ class AscendMLAImpl(MLAAttentionImpl):
                         [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
                 kv_c_normed = self.kv_a_layernorm(kv_c.contiguous())
         else:
-            kv_c_normed = hidden_states_or_kv_c_normed
+            kv_c_normed = hidden_states_or_kv_c_normed   # hidden_states_or_kv_c_normed ---> shape [119, 512]
         assert attn_metadata.num_decodes is not None and \
         attn_metadata.num_prefills is not None and \
         attn_metadata.num_decode_tokens is not None
@@ -1076,14 +1076,14 @@ class AscendMLAImpl(MLAAttentionImpl):
                 kv_c_normed = kv_c_normed[:num_actual_toks, ...]
                 prefill_k_c_normed = kv_c_normed[num_decode_tokens:]
         if not self.running_in_graph:
-            hidden_states_or_q_c = hidden_states_or_q_c[:num_actual_toks, ...]
+            hidden_states_or_q_c = hidden_states_or_q_c[:num_actual_toks, ...] # hidden_states_or_q_c ---> shape [119, 1536]
             prefill_hs_or_q_c = hidden_states_or_q_c[num_decode_tokens:]
             if not self.torchair_graph_enabled:
                 decode_hs_or_q_c = hidden_states_or_q_c[:num_decode_tokens]
                 k_pe = k_pe[:num_actual_toks, ...]
-                k_pe = k_pe.unsqueeze(1)
-                decode_k_pe = k_pe[:num_decode_tokens]
-                prefill_k_pe = k_pe[num_decode_tokens:]
+                k_pe = k_pe.unsqueeze(1)   # k_pe ---> shape [119, 1, 64]
+                decode_k_pe = k_pe[:num_decode_tokens] # decode_k_pe ---> shape [0, 1, 64]
+                prefill_k_pe = k_pe[num_decode_tokens:] # prefill_k_pe ----> shape [119, 1, 64]
         else:
             decode_hs_or_q_c = hidden_states_or_q_c
         if has_decode:
@@ -1130,9 +1130,9 @@ class AscendMLAImpl(MLAAttentionImpl):
         if has_prefill:
             assert attn_metadata.prefill is not None
             prefill_q = self.q_proj(prefill_hs_or_q_c)[0]\
-                .view(-1, self.num_heads, self.qk_head_dim)
-            prefill_q_pe = prefill_q[..., self.qk_nope_head_dim:]
-            prefill_q_nope = prefill_q[..., :self.qk_nope_head_dim]
+                .view(-1, self.num_heads, self.qk_head_dim)  # prefill_q ---> shape [119, 8, 192]
+            prefill_q_pe = prefill_q[..., self.qk_nope_head_dim:] # prefill_q_pe  ---> shape [119, 8, 64]
+            prefill_q_nope = prefill_q[..., :self.qk_nope_head_dim] # prefill_q_nope ---> shape [119, 8, 128]
             if self.torchair_graph_enabled:
                 num_tokens = prefill_hs_or_q_c.shape[0]
                 seq_len = self.rotary_emb.max_position_embeddings * self.rotary_emb.scaling_factor
@@ -1178,19 +1178,19 @@ class AscendMLAImpl(MLAAttentionImpl):
                                                  slot_indices=slots)
         else:
             kv_c_normed = kv_c_normed.view(
-                [num_actual_toks, self.num_kv_heads, -1])
+                [num_actual_toks, self.num_kv_heads, -1])  # kv_c_normed ----> shape [119, 1, 512]
             torch_npu._npu_reshape_and_cache(
-                key=kv_c_normed,
-                value=k_pe,
-                key_cache=kv_cache[0],
-                value_cache=kv_cache[1],
+                key=kv_c_normed,   # kv_c_normed ----> shape [119, 1, 512]
+                value=k_pe,      # k_pe ----> shape [119, 1, 64]
+                key_cache=kv_cache[0], # kv_cache[0] ---> shape [1568, 128, 1, 512]
+                value_cache=kv_cache[1], # kv_cache[1]  ---> shape [1568, 128, 1, 64]
                 slot_indices=attn_metadata.slot_mapping)
         if has_prefill:
             # FIX: aicore move should be also placed on the comm stream in dbo,
             # otherwise it may affect the accuracy
             # TODO: use an elegant way to overlap
-            output_prefill = self._forward_prefill(prefill_q,
-                                                   prefill_k_c_normed,
+            output_prefill = self._forward_prefill(prefill_q,  # shape [119, 8, 192]
+                                                   prefill_k_c_normed, # shape [119, 512]
                                                    prefill_k_pe, kv_cache,
                                                    attn_metadata)
             current_ms_metadata = get_multistream_comm_context()
