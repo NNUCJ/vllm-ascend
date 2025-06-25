@@ -1194,7 +1194,7 @@ class AscendFusedMoE(FusedMoE):
             shared_experts=shared_experts if self.torchair_graph_enabled
             and self.enable_multistream_moe and not is_prefill else None,
             max_num_tokens_across_dp=max_num_tokens_across_dp,
-            dp_size=self.dp,
+            dp_size=self.dp_size,
         )
 
         if shared_experts:
