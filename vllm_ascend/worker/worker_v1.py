@@ -44,7 +44,10 @@ from vllm_ascend.distributed.parallel_state import init_ascend_model_parallel
 from vllm_ascend.platform import NPUPlatform
 from vllm_ascend.utils import try_register_lib
 from vllm_ascend.worker.model_runner_v1 import NPUModelRunner
+from vllm_ascend.cpu_binging import bind_cpus
+import vllm_ascend.envs as envs
 
+CPU_BINDING : bool = envs.VLLM_ASCEND_CPU_BINDING
 
 class NPUWorker(WorkerBase):
 
@@ -130,6 +133,15 @@ class NPUWorker(WorkerBase):
             raise RuntimeError(info)
         # Initialize the distributed environment.
         self._init_worker_distributed_environment()
+        if CPU_BINDING:
+            try:
+                bind_cpus(self.local_rank, ratio=1.0)
+            except RuntimeError as e:
+                logger.error(f"When binding cpu, the following runtime error occurred: {e}")
+            except ValueError as e:
+                logger.error(f"When binding cpu, the following value error occurred: {e}")
+            except Exception as e:
+                logger.info(f"skip binding cpu")
         # Set random seed.
         set_random_seed(self.model_config.seed)
 
