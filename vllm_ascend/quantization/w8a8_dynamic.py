@@ -121,6 +121,7 @@ def fused_experts_with_mc2(
     global_redundant_expert_num: int = 0,
     shared_experts: Optional[Any] = None,
     max_num_tokens_across_dp:int = 0,
+    dp_size=0,
 ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     if log2phy is not None:
         topk_ids = log2phy[topk_ids]
@@ -239,26 +240,37 @@ def fused_prefill_experts_with_mc2(
     global_redundant_expert_num: int = 0,
     shared_experts: Optional[Any] = None,
     max_num_tokens_across_dp:int = 0,
+    dp_size=0
 ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     num_tokens = hidden_states.shape[0]
     local_chunk_size = CHUNK_SIZE
-    if max_num_tokens_across_dp == 0:
-        #TODO if dp size < 1 
-        '''
+    # TODO(chengjie) Optimize logic
+    if dp_size > 0:
+        if max_num_tokens_across_dp == 0:
+            #TODO if dp size < 1 
+            '''
+            ep_group = get_ep_group().device_group
+            hidden_states_shape = torch.tensor(hidden_states.shape, device=hidden_states.device)
+            dist.all_reduce(hidden_states_shape, op=dist.ReduceOp.MAX, group=ep_group)
+            max_token_num = hidden_states_shape[0]
+            max_num_chunks = max_token_num.cpu() // local_chunk_size + 1
+            '''
+            max_num_chunks = 1
+            local_chunk_size = hidden_states.shape[0]
+        else:
+            max_num_chunks = max_num_tokens_across_dp // local_chunk_size + 1
+
+    else:
         ep_group = get_ep_group().device_group
         hidden_states_shape = torch.tensor(hidden_states.shape, device=hidden_states.device)
         dist.all_reduce(hidden_states_shape, op=dist.ReduceOp.MAX, group=ep_group)
         max_token_num = hidden_states_shape[0]
         max_num_chunks = max_token_num.cpu() // local_chunk_size + 1
-        '''
-        max_num_chunks = 1
-        local_chunk_size = hidden_states.shape[0]
-    else:
-        max_num_chunks = max_num_tokens_across_dp // local_chunk_size + 1
-        if max_num_chunks > num_tokens:
-            hidden_states = nn.functional.pad(hidden_states, (0, 0, 0, max_num_chunks - num_tokens))
-            topk_weights = nn.functional.pad(topk_weights, (0, 0, 0, max_num_chunks - num_tokens))
-            topk_ids = nn.functional.pad(topk_ids, (0, 0, 0, max_num_chunks - num_tokens))
+
+    if max_num_chunks > num_tokens:
+        hidden_states = nn.functional.pad(hidden_states, (0, 0, 0, max_num_chunks - num_tokens))
+        topk_weights = nn.functional.pad(topk_weights, (0, 0, 0, max_num_chunks - num_tokens))
+        topk_ids = nn.functional.pad(topk_ids, (0, 0, 0, max_num_chunks - num_tokens))
     hidden_states_chunk_list = []
     shared_chunk_list = []
     hidden_states_chunks = torch.tensor_split(hidden_states, max_num_chunks, dim=0)
@@ -751,7 +763,7 @@ class AscendW8A8DynamicFusedMoEMethod:
 
         fused_moe_state = get_fused_moe_state(self.ep_group.world_size,
                                               is_prefill)
-        if fused_moe_state == FusedMoEState.MC2_DECODE:
+        if fused_moe_state == FusedMoEState.MC2:
             return fused_experts_with_mc2(
                 hidden_states=x,
                 w1=layer.w13_weight,
