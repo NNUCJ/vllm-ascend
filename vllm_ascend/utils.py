@@ -306,4 +306,4 @@ def get_fused_moe_state(ep_size: int, with_prefill: bool):
         elif ep_size < 16 or  with_prefill:
             return FusedMoEState.All2All
         else:
-            return FusedMoEState.MC2_DECODE
+            return FusedMoEState.MC2
