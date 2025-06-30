@@ -29,6 +29,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import torch
 import torch_npu
+import torchair as tng
 import vllm.envs as envs
 from torch import nn
 from transformers import PretrainedConfig
@@ -525,6 +526,7 @@ class CustomDeepseekV2DecoderLayer(DeepseekV2DecoderLayer):
         # with the layer's index.
         layer_idx = int(prefix.split(sep='.')[-1])
         self.layer_idx = layer_idx
+        self.prefix = prefix
         # TODO: enable mla in vllm-ascend
         if model_config.use_mla:
             attn_cls = CustomDeepseekV2MLAAttention
@@ -613,7 +615,12 @@ class CustomDeepseekV2DecoderLayer(DeepseekV2DecoderLayer):
             hidden_states, residual)
 
         if isinstance(self.mlp, CustomDeepseekV2MoE):
-            hidden_states = self.mlp(hidden_states, attn_metadata)
+            is_prefill = get_forward_context().with_prefill
+            if not is_prefill:
+                with tng.scope.super_kernel(f"{self.prefix}", "stream-fusion=1"):
+                    hidden_states = self.mlp(hidden_states, attn_metadata)
+            else:
+                hidden_states = self.mlp(hidden_states, attn_metadata)
         else:
             hidden_states = self.mlp(hidden_states)
 
